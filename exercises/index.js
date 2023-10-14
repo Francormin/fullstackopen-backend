@@ -1,8 +1,10 @@
+require("dotenv").config();
 const express = require("express");
 const morgan = require("morgan");
 const cors = require("cors");
-let contacts = require("./db.json");
-const generateRandomId = require("./utils/generateRandomId");
+const Contact = require("./models/Contact");
+const unknownEndpoint = require("./middlewares/unknownEndpoint");
+const errorHandler = require("./middlewares/errorHandler");
 
 const app = express();
 
@@ -11,64 +13,105 @@ morgan.token("body", function (req, res) {
   return JSON.stringify({ name, number });
 });
 
-app.use(express.json());
 app.use(express.static("build"));
+app.use(express.json());
 app.use(morgan(":method :url :status :res[content-length] - :response-time ms :body"));
 app.use(cors());
 
-app.get("/api/info", (request, response) => {
-  response.send(`
-    <p>Phonebook has info for ${contacts.length} people</p>
-    <p>${new Date()}</p>
-  `);
-});
-
-app.get("/api/contacts", (request, response) => {
-  response.json(contacts);
-});
-
-app.get("/api/contacts/:id", (request, response) => {
-  const id = Number(request.params.id);
-
-  const contact = contacts.find(contact => contact.id === id);
-
-  if (contact) {
-    response.json(contact);
-  } else {
-    response.status(404).end();
-  }
-});
-
-app.post("/api/contacts", (request, response) => {
-  const contact = request.body;
-
-  if (!contact.name || !contact.number) {
-    return response.status(400).json({
-      error: "name and number are both required"
+app.get("/api/info", (request, response, next) => {
+  Contact.find({})
+    .then(contacts => {
+      response.send(`
+      <p>Phonebook has info for ${contacts.length} contacts</p>
+      <p>${new Date()}</p>
+    `);
+    })
+    .catch(error => {
+      next(error);
     });
-  }
+});
 
-  if (contacts.find(cont => cont.name === contact.name)) {
-    return response.status(400).json({
-      error: "name must be unique"
+app.get("/api/contacts", (request, response, next) => {
+  Contact.find({})
+    .then(contacts => {
+      response.json(contacts);
+    })
+    .catch(error => {
+      next(error);
     });
-  }
-
-  contact.id = generateRandomId();
-  contacts = contacts.concat(contact);
-
-  response.status(201).json(contact);
 });
 
-app.delete("/api/contacts/:id", (request, response) => {
-  const id = Number(request.params.id);
+app.get("/api/contacts/:id", (request, response, next) => {
+  const { id } = request.params;
 
-  contacts = contacts.filter(contact => contact.id !== id);
-
-  response.status(204).end();
+  Contact.findById(id)
+    .then(contact => {
+      if (contact) response.json(contact);
+      else response.status(404).end();
+    })
+    .catch(error => {
+      next(error);
+    });
 });
 
-const PORT = 3001;
+app.post("/api/contacts", (request, response, next) => {
+  const { name, number } = request.body;
+
+  if (!name || !number) return response.status(400).send({ error: "name and number are both required" });
+
+  Contact.find({ name: name })
+    .then(contacts => {
+      if (contacts.length) response.status(400).send({ error: "name must be unique" });
+      else {
+        const contactToSave = new Contact({ name, number });
+        contactToSave.save().then(savedContact => {
+          response.status(201).json(savedContact);
+        });
+      }
+    })
+    .catch(error => {
+      next(error);
+    });
+});
+
+app.put("/api/contacts/:id", (request, response, next) => {
+  const { id } = request.params;
+  const { name, number } = request.body;
+
+  if (!name && !number) return response.status(400).send({ error: "there is nothing to update" });
+
+  const contactToUpdate = { name, number };
+
+  Contact.findByIdAndUpdate(id, contactToUpdate, { new: true })
+    .then(updatedContact => {
+      if (updatedContact) response.json(updatedContact);
+      else response.status(404).end();
+    })
+    .catch(error => {
+      next(error);
+    });
+});
+
+app.delete("/api/contacts/:id", (request, response, next) => {
+  const { id } = request.params;
+
+  Contact.findByIdAndDelete(id)
+    .then(deletedContact => {
+      if (deletedContact) response.status(204).end();
+      else response.status(404).end();
+    })
+    .catch(error => {
+      next(error);
+    });
+});
+
+// handler of requests with unknown endpoint
+app.use(unknownEndpoint);
+
+// handler of requests with result to errors
+app.use(errorHandler);
+
+const PORT = process.env.PORT;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
