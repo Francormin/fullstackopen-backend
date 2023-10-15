@@ -57,17 +57,13 @@ app.get("/api/contacts/:id", (request, response, next) => {
 app.post("/api/contacts", (request, response, next) => {
   const { name, number } = request.body;
 
-  if (!name || !number) return response.status(400).send({ error: "name and number are both required" });
+  if (!name || !number) return response.status(400).send({ error: "Name and number are both required" });
 
-  Contact.find({ name: name })
-    .then(contacts => {
-      if (contacts.length) response.status(400).send({ error: "name must be unique" });
-      else {
-        const contactToSave = new Contact({ name, number });
-        contactToSave.save().then(savedContact => {
-          response.status(201).json(savedContact);
-        });
-      }
+  const contactToSave = new Contact({ name, number });
+  contactToSave
+    .save()
+    .then(savedContact => {
+      response.status(201).json(savedContact);
     })
     .catch(error => {
       next(error);
@@ -78,11 +74,11 @@ app.put("/api/contacts/:id", (request, response, next) => {
   const { id } = request.params;
   const { name, number } = request.body;
 
-  if (!name && !number) return response.status(400).send({ error: "there is nothing to update" });
+  if (!name && !number) return response.status(400).send({ error: "There is nothing to update" });
 
   const contactToUpdate = { name, number };
 
-  Contact.findByIdAndUpdate(id, contactToUpdate, { new: true })
+  Contact.findByIdAndUpdate(id, contactToUpdate, { runValidators: true, new: true })
     .then(updatedContact => {
       if (updatedContact) response.json(updatedContact);
       else response.status(404).end();
@@ -105,10 +101,7 @@ app.delete("/api/contacts/:id", (request, response, next) => {
     });
 });
 
-// handler of requests with unknown endpoint
 app.use(unknownEndpoint);
-
-// handler of requests with result to errors
 app.use(errorHandler);
 
 const PORT = process.env.PORT;
