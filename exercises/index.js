@@ -8,7 +8,7 @@ const errorHandler = require("./middlewares/errorHandler");
 
 const app = express();
 
-morgan.token("body", function (req, res) {
+morgan.token("body", function (req) {
   const { name, number } = req.body;
   return JSON.stringify({ name, number });
 });
@@ -18,7 +18,7 @@ app.use(express.json());
 app.use(morgan(":method :url :status :res[content-length] - :response-time ms :body"));
 app.use(cors());
 
-app.get("/api/info", (request, response, next) => {
+app.get("/api/info", (_request, response, next) => {
   Contact.find({})
     .then(contacts => {
       response.send(`
@@ -31,7 +31,7 @@ app.get("/api/info", (request, response, next) => {
     });
 });
 
-app.get("/api/contacts", (request, response, next) => {
+app.get("/api/contacts", (_request, response, next) => {
   Contact.find({})
     .then(contacts => {
       response.json(contacts);
@@ -106,5 +106,6 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT;
 app.listen(PORT, () => {
+  // eslint-disable-next-line no-console
   console.log(`Server running on port ${PORT}`);
 });
